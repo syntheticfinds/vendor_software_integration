@@ -9,13 +9,13 @@ from alembic import context
 from app.config import settings
 from app.models.base import Base
 from app.companies.models import Company  # noqa: F401
-from app.monitoring.models import MonitoredEmail, DetectedSoftware  # noqa: F401
+from app.monitoring.models import MonitoredEmail, MonitoredDriveFile, MonitoredJiraIssue, DetectedSoftware  # noqa: F401
 from app.software.models import SoftwareRegistration  # noqa: F401
 from app.signals.models import SignalEvent, HealthScore, ReviewDraft  # noqa: F401
 from app.portal.models import PublicSoftwareIndex, ChatSession, ChatMessage  # noqa: F401
 from app.outreach.models import OutreachCampaign, OutreachMessage  # noqa: F401
 from app.intelligence.models import IntelligenceCache  # noqa: F401
-from app.integrations.models import EmailIntegration, JiraWebhook  # noqa: F401
+from app.integrations.models import EmailIntegration, JiraWebhook, JiraPollingConfig  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

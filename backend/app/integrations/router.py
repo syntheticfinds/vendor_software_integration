@@ -10,9 +10,12 @@ from app.companies.models import Company
 from app.database import get_db
 from app.dependencies import get_current_company
 from app.integrations.schemas import (
+    DriveStatusResponse,
     GmailAuthUrl,
     GmailDisconnectResponse,
     GmailStatusResponse,
+    JiraPollingEnableRequest,
+    JiraPollingStatusResponse,
     JiraWebhookDisconnectResponse,
     JiraWebhookInfo,
     JiraWebhookListResponse,
@@ -24,10 +27,13 @@ from app.integrations.service import (
     create_jira_webhook,
     delete_integration,
     delete_jira_webhook,
+    disable_jira_polling,
+    enable_jira_polling,
     exchange_code_for_tokens,
     generate_authorization_url,
     get_google_email,
     get_integration,
+    get_jira_polling_config,
     get_jira_webhooks_by_secret,
     get_jira_webhooks_for_company,
     record_jira_event,
@@ -153,6 +159,67 @@ async def gmail_disconnect(
             detail="No Gmail integration found",
         )
     return GmailDisconnectResponse(status="disconnected", message="Gmail integration removed successfully")
+
+
+# ---------------------------------------------------------------------------
+# Google Drive
+# ---------------------------------------------------------------------------
+
+
+@router.get("/drive/status", response_model=DriveStatusResponse)
+async def drive_status(
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get Google Drive connection status.
+
+    Drive is available when Gmail is connected with the drive.readonly scope.
+    """
+    integration = await get_integration(db, company.id)
+    if not integration:
+        return DriveStatusResponse(available=False, enabled=False)
+
+    has_drive_scope = "drive.readonly" in (integration.scopes or "")
+    return DriveStatusResponse(
+        available=has_drive_scope,
+        enabled=integration.drive_sync_enabled,
+        last_sync_at=integration.drive_last_sync_at,
+        needs_reauth=not has_drive_scope and integration.is_active,
+    )
+
+
+@router.post("/drive/enable")
+async def drive_enable(
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enable Drive sync (requires drive.readonly scope)."""
+    integration = await get_integration(db, company.id)
+    if not integration or "drive.readonly" not in (integration.scopes or ""):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Gmail must be connected with Drive scope first. Re-connect Gmail to grant access.",
+        )
+    integration.drive_sync_enabled = True
+    await db.commit()
+    return {"status": "enabled"}
+
+
+@router.post("/drive/disable")
+async def drive_disable(
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Disable Drive sync."""
+    integration = await get_integration(db, company.id)
+    if not integration:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No integration found",
+        )
+    integration.drive_sync_enabled = False
+    await db.commit()
+    return {"status": "disabled"}
 
 
 # ---------------------------------------------------------------------------
@@ -355,3 +422,61 @@ async def jira_webhook_receiver(
         "routed_webhooks": len(routed_webhooks),
         "results": results,
     }
+
+
+# ---------------------------------------------------------------------------
+# Jira Polling (Pull)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/jira-polling/status", response_model=JiraPollingStatusResponse)
+async def jira_polling_status(
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get Jira polling status for the current company."""
+    available = bool(settings.JIRA_SITE_URL and settings.JIRA_API_TOKEN)
+    config = await get_jira_polling_config(db, company.id)
+
+    if not config:
+        return JiraPollingStatusResponse(available=available, enabled=False)
+
+    return JiraPollingStatusResponse(
+        available=available,
+        enabled=config.is_enabled,
+        last_sync_at=config.last_sync_at,
+        issues_synced=config.issues_synced or 0,
+        jql_filter=config.jql_filter,
+    )
+
+
+@router.post("/jira-polling/enable")
+async def jira_polling_enable(
+    body: JiraPollingEnableRequest | None = None,
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enable Jira polling for the current company."""
+    if not settings.JIRA_SITE_URL or not settings.JIRA_API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Jira API credentials are not configured. Set JIRA_SITE_URL, JIRA_USER_EMAIL, and JIRA_API_TOKEN in .env.",
+        )
+    jql = body.jql_filter if body else None
+    await enable_jira_polling(db, company.id, jql_filter=jql)
+    return {"status": "enabled"}
+
+
+@router.post("/jira-polling/disable")
+async def jira_polling_disable(
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_db),
+):
+    """Disable Jira polling for the current company."""
+    config = await disable_jira_polling(db, company.id)
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Jira polling config found",
+        )
+    return {"status": "disabled"}

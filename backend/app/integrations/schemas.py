@@ -57,3 +57,28 @@ class JiraWebhookListResponse(BaseModel):
 class JiraWebhookDisconnectResponse(BaseModel):
     status: str
     message: str
+
+
+# --- Google Drive ---
+
+
+class DriveStatusResponse(BaseModel):
+    available: bool
+    enabled: bool
+    last_sync_at: datetime | None = None
+    needs_reauth: bool = False
+
+
+# --- Jira Polling ---
+
+
+class JiraPollingStatusResponse(BaseModel):
+    available: bool
+    enabled: bool
+    last_sync_at: datetime | None = None
+    issues_synced: int = 0
+    jql_filter: str | None = None
+
+
+class JiraPollingEnableRequest(BaseModel):
+    jql_filter: str | None = None

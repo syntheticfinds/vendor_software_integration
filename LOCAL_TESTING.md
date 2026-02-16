@@ -6,8 +6,9 @@
 - Node.js 18+
 - Docker (for PostgreSQL) or SQLite (default, no setup needed)
 - An Anthropic API key
-- Google Cloud OAuth credentials (for Gmail integration)
+- Google Cloud OAuth credentials (for Gmail + Google Drive integration)
 - ngrok (for Jira webhook testing)
+- Jira Cloud account + API token (for Jira polling integration)
 
 ## 1. Install dependencies
 
@@ -51,6 +52,11 @@ GOOGLE_CLIENT_SECRET=<your-google-client-secret>
 
 # Jira webhook (use the ngrok URL from above)
 WEBHOOK_BASE_URL=
+
+# Jira Cloud REST API (for polling integration)
+JIRA_SITE_URL=https://yourcompany.atlassian.net
+JIRA_USER_EMAIL=your-jira-email@example.com
+JIRA_API_TOKEN=your-jira-api-token
 ```
 
 ## 3. Run database migrations
@@ -90,7 +96,72 @@ After registration you'll be logged in automatically.
 3. Sign in with the Google account that owns `vendorintel0@gmail.com` (password: vendorintel123) and grant permissions.
 4. You should see "Gmail: connected" on the Settings page.
 
-## 7. Register software
+## 7. Enable Google Drive monitoring
+
+Google Drive monitoring reuses the same Google OAuth connection as Gmail. When
+you connected Gmail in step 6, the app also requested the `drive.readonly`
+scope, so Drive access is already granted.
+
+1. Go to **Settings**.
+2. Under the **Google Drive** card, click **Enable Drive Monitoring**.
+3. The sync loop will poll Drive every 5 minutes for new or updated files.
+
+The system exports text from Google Docs, Sheets, and Slides, then runs them
+through the same CrewAI detection pipeline as emails. Detected software from
+Drive documents appears on the **Monitoring** page.
+
+> **Note:** If the Drive card says "Re-connect Gmail to enable Drive", your
+> Gmail connection was made before Drive scope was added. Click the re-connect
+> button to re-authorize with the additional scope.
+
+> **Note:** You must enable the **Google Drive API** in the Google Cloud Console
+> (APIs & Services > Enable APIs) for the same project that owns your OAuth
+> credentials.
+
+## 8. Enable Jira polling
+
+Jira polling lets the app pull issues from a Jira Cloud instance on a regular
+interval and detect vendor software from issue titles and descriptions.
+
+### a. Create a Jira Cloud instance (if you don't have one)
+
+1. Go to https://www.atlassian.com/software/jira/free and sign up.
+2. Create a project (Scrum or Kanban).
+3. Create a few test tickets that mention vendor software, e.g.:
+   - "Set up SSO integration with The Trade Desk platform"
+   - "Procurement approval for Google DV360 annual license"
+
+### b. Generate a Jira API token
+
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+2. Click **Create API token**, give it a label, and copy the token.
+
+### c. Configure credentials
+
+Add these to `backend/.env`:
+
+```
+JIRA_SITE_URL=https://yourcompany.atlassian.net
+JIRA_USER_EMAIL=your-atlassian-email@example.com
+JIRA_API_TOKEN=your-api-token
+```
+
+Restart the backend after updating `.env`.
+
+### d. Enable polling
+
+1. Go to **Settings**.
+2. Under the **Jira Polling** card, click **Enable Jira Polling**.
+3. The sync loop will poll Jira every 5 minutes for recently-updated issues.
+
+Issues are deduplicated by issue key (e.g., `VO-5`). New issues are run through
+the CrewAI detection pipeline. Detected software appears on the **Monitoring**
+page.
+
+> **Tip:** You can optionally set a JQL filter when enabling polling to scope
+> which issues are fetched (e.g., `project = VO`).
+
+## 9. Register software
 
 Sign up for some vendor software using `vendorintel0@gmail.com`.
 After about 1 minute, detected software will appear on the **Monitoring** page.
@@ -113,7 +184,7 @@ Optional fields:
 Registered software appears on the **Software Integrations** page where you can
 edit fields, change the Jira webhook URL, or archive it.
 
-## 8. Test Jira webhook integration
+## 10. Test Jira webhook integration
 
 ### a. Set up the webhook
 
@@ -137,7 +208,7 @@ Create or update an issue in the Jira project. The webhook fires immediately.
 - **Software Integrations page** — You'll see the number of events and last event received timestamp for each software.
 - **Signals page** — a new signal should appear for the matched software.
 
-## 9. Test email-based signal detection
+## 11. Test email-based signal detection
 
 Send an email **from** a vendor support address (the one you registered in step 7)
 **to** `vendorintel0@gmail.com`, or send an email **from** `vendorintel0@gmail.com`
@@ -149,7 +220,7 @@ Within 60 seconds the sync loop will:
 2. Match it against registered support emails.
 3. Create a signal (visible on the Signals page).
 
-## 10. Using the app
+## 12. Using the app
 
 ### Signals tab
 

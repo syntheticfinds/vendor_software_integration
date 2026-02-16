@@ -31,15 +31,20 @@ structlog.configure(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from app.integrations.sync_scheduler import gmail_sync_loop
+    from app.integrations.sync_scheduler import drive_sync_loop, gmail_sync_loop, jira_poll_sync_loop
 
-    task = asyncio.create_task(gmail_sync_loop())
+    gmail_task = asyncio.create_task(gmail_sync_loop())
+    drive_task = asyncio.create_task(drive_sync_loop())
+    jira_poll_task = asyncio.create_task(jira_poll_sync_loop())
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    gmail_task.cancel()
+    drive_task.cancel()
+    jira_poll_task.cancel()
+    for task in [gmail_task, drive_task, jira_poll_task]:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
 def create_app() -> FastAPI:

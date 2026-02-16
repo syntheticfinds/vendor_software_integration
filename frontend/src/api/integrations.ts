@@ -75,3 +75,54 @@ export async function disconnectJira(softwareId: string): Promise<{ status: stri
   const res = await apiClient.delete(`/integrations/jira/${softwareId}`);
   return res.data;
 }
+
+// --- Google Drive ---
+
+export interface DriveStatus {
+  available: boolean;
+  enabled: boolean;
+  last_sync_at: string | null;
+  needs_reauth: boolean;
+}
+
+export async function getDriveStatus(): Promise<DriveStatus> {
+  const res = await apiClient.get<DriveStatus>('/integrations/drive/status');
+  return res.data;
+}
+
+export async function enableDriveSync(): Promise<{ status: string }> {
+  const res = await apiClient.post<{ status: string }>('/integrations/drive/enable');
+  return res.data;
+}
+
+export async function disableDriveSync(): Promise<{ status: string }> {
+  const res = await apiClient.post<{ status: string }>('/integrations/drive/disable');
+  return res.data;
+}
+
+// --- Jira Polling ---
+
+export interface JiraPollingStatus {
+  available: boolean;
+  enabled: boolean;
+  last_sync_at: string | null;
+  issues_synced: number;
+  jql_filter: string | null;
+}
+
+export async function getJiraPollingStatus(): Promise<JiraPollingStatus> {
+  const res = await apiClient.get<JiraPollingStatus>('/integrations/jira-polling/status');
+  return res.data;
+}
+
+export async function enableJiraPolling(jqlFilter?: string): Promise<{ status: string }> {
+  const res = await apiClient.post<{ status: string }>('/integrations/jira-polling/enable', {
+    jql_filter: jqlFilter ?? null,
+  });
+  return res.data;
+}
+
+export async function disableJiraPolling(): Promise<{ status: string }> {
+  const res = await apiClient.post<{ status: string }>('/integrations/jira-polling/disable');
+  return res.data;
+}
