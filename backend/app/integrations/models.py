@@ -22,6 +22,11 @@ class EmailIntegration(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Drive sync state
+    drive_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    drive_last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    drive_page_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+
 
 class JiraWebhook(TimestampMixin, Base):
     __tablename__ = "jira_webhooks"
@@ -37,3 +42,16 @@ class JiraWebhook(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     events_received: Mapped[int] = mapped_column(Integer, default=0)
     last_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class JiraPollingConfig(TimestampMixin, Base):
+    __tablename__ = "jira_polling_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=generate_uuid)
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("companies.id"), nullable=False, unique=True, index=True
+    )
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    jql_filter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    issues_synced: Mapped[int] = mapped_column(Integer, default=0)

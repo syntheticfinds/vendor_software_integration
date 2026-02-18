@@ -17,7 +17,7 @@ GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
-GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email"
+GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.readonly"
 
 
 def generate_authorization_url(state: str) -> str:
@@ -278,3 +278,58 @@ async def record_jira_event(db: AsyncSession, webhook: JiraWebhook) -> None:
     webhook.events_received = (webhook.events_received or 0) + 1
     webhook.last_event_at = datetime.now(timezone.utc)
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Jira Polling service functions
+# ---------------------------------------------------------------------------
+
+
+async def get_jira_polling_config(
+    db: AsyncSession, company_id: uuid.UUID,
+):
+    """Get the Jira polling config for a company."""
+    from app.integrations.models import JiraPollingConfig
+
+    result = await db.execute(
+        select(JiraPollingConfig).where(JiraPollingConfig.company_id == company_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def enable_jira_polling(
+    db: AsyncSession,
+    company_id: uuid.UUID,
+    jql_filter: str | None = None,
+):
+    """Enable Jira polling for a company (create or update config)."""
+    from app.integrations.models import JiraPollingConfig
+
+    config = await get_jira_polling_config(db, company_id)
+    if config:
+        config.is_enabled = True
+        config.jql_filter = jql_filter
+    else:
+        config = JiraPollingConfig(
+            company_id=company_id,
+            is_enabled=True,
+            jql_filter=jql_filter,
+        )
+        db.add(config)
+
+    await db.commit()
+    await db.refresh(config)
+    return config
+
+
+async def disable_jira_polling(
+    db: AsyncSession, company_id: uuid.UUID,
+):
+    """Disable Jira polling for a company."""
+    config = await get_jira_polling_config(db, company_id)
+    if not config:
+        return None
+    config.is_enabled = False
+    await db.commit()
+    await db.refresh(config)
+    return config

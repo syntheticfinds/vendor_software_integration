@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # Set to your ngrok URL (e.g. https://abc123.ngrok-free.app) for local Jira webhook testing
     WEBHOOK_BASE_URL: str = ""
 
+    # Jira Cloud REST API (polling integration)
+    JIRA_SITE_URL: str = ""
+    JIRA_USER_EMAIL: str = ""
+    JIRA_API_TOKEN: str = ""
+
     K_ANONYMITY_THRESHOLD: int = 5
 
     model_config = {"env_file": ".env", "extra": "ignore"}
