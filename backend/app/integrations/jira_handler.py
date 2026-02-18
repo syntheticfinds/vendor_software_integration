@@ -54,16 +54,22 @@ def parse_jira_webhook(payload: dict) -> dict | None:
 
     event_type, default_severity = mapped
 
-    # Detect resolution: status changed to Done/Resolved/Closed
+    # Detect lifecycle transitions from status changes
     changelog = payload.get("changelog") or {}
+    _DONE_STATUSES = {"done", "resolved", "closed", "complete"}
     if webhook_event == "jira:issue_updated" and changelog:
         for item in changelog.get("items", []):
             if item.get("field") == "status":
+                from_status = (item.get("fromString") or "").lower()
                 to_status = (item.get("toString") or "").lower()
-                if to_status in ("done", "resolved", "closed", "complete"):
+                if to_status in _DONE_STATUSES:
                     event_type = "ticket_resolved"
                     default_severity = "medium"
-                    break
+                elif from_status in _DONE_STATUSES and to_status not in _DONE_STATUSES:
+                    # Re-opened: moved FROM a done state TO an active state
+                    event_type = "ticket_reopened"
+                    default_severity = "medium"
+                break
 
     # Map Jira priority to our severity
     priority_name = (fields.get("priority") or {}).get("name", "")
@@ -92,7 +98,7 @@ def parse_jira_webhook(payload: dict) -> dict | None:
         if comment_body:
             body_parts.append(f"Comment by {comment_author}: {comment_body[:1000]}")
 
-    if changelog and event_type == "ticket_updated":
+    if changelog and event_type in ("ticket_updated", "ticket_reopened"):
         changes = []
         for item in changelog.get("items", []):
             field_name = item.get("field", "")

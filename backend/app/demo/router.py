@@ -74,6 +74,32 @@ async def _find_or_merge_signal(
         )
         for sig in result.scalars().all():
             if _normalize_title(sig.title) == normalized:
+                # Lifecycle transitions must NOT merge — they need separate
+                # signals for trajectory tracking:
+                #  - ticket_resolved: pairs with ticket_created for resolution metrics
+                #  - ticket_reopened: counts as recurrence + invalidates prior resolution
+                # Instead, skip the merge and fall through to create a new signal,
+                # inheriting the original stage_topic.
+                _LIFECYCLE_SKIP = {
+                    ("ticket_resolved", "ticket_created"),
+                    ("ticket_resolved", "ticket_reopened"),
+                    ("ticket_reopened", "ticket_resolved"),
+                    ("ticket_reopened", "ticket_created"),
+                }
+                if (event_type, sig.event_type) in _LIFECYCLE_SKIP:
+                    sig_meta = sig.event_metadata if isinstance(sig.event_metadata, dict) else {}
+                    inherited_stage = sig_meta.get("stage_topic")
+                    if inherited_stage:
+                        event_metadata = {**event_metadata, "_inherit_stage": inherited_stage}
+                    logger.info(
+                        "lifecycle_transition_skip_merge",
+                        event_type=event_type,
+                        existing_type=sig.event_type,
+                        signal_id=str(sig.id),
+                        inherited_stage=inherited_stage,
+                    )
+                    break
+
                 # Append body as a thread update
                 if body:
                     date_label = occurred_at.strftime("%b %d, %Y %H:%M")
@@ -103,11 +129,41 @@ async def _find_or_merge_signal(
                         reporters.append(new_reporter)
                     meta["reporters"] = reporters
                     meta["reporter"] = new_reporter
-                    sig.event_metadata = meta
+
+                # Re-classify merged signal (but preserve original stage_topic —
+                # updates to the same work item belong to the same lifecycle stage)
+                original_stage = meta.get("stage_topic")
+                tags = await _classify_for_software(
+                    db, software_id, source_type, event_type,
+                    sig.severity, sig.title, sig.body,
+                )
+                meta.update(tags)
+                if original_stage and tags.get("stage_topic") != original_stage:
+                    logger.info(
+                        "merge_stage_preserved",
+                        signal_id=str(sig.id),
+                        original_stage=original_stage,
+                        classifier_stage=tags.get("stage_topic"),
+                    )
+                    meta["stage_topic"] = original_stage
+                sig.event_metadata = meta
 
                 await db.commit()
                 await db.refresh(sig)
                 return sig, False
+
+    # Classify new signal
+    tags = await _classify_for_software(
+        db, software_id, source_type, event_type,
+        severity, title, body,
+    )
+    # If this signal was created because a lifecycle transition skipped the
+    # merge (e.g. ticket_resolved for an existing ticket_created), inherit
+    # the original signal's stage_topic so the pair stays in the same stage.
+    inherited_stage = event_metadata.pop("_inherit_stage", None)
+    enriched_metadata = {**event_metadata, **tags}
+    if inherited_stage:
+        enriched_metadata["stage_topic"] = inherited_stage
 
     signal = SignalEvent(
         company_id=company_id,
@@ -119,12 +175,41 @@ async def _find_or_merge_signal(
         title=normalized or title,
         body=body,
         occurred_at=occurred_at,
-        event_metadata=event_metadata,
+        event_metadata=enriched_metadata,
     )
     db.add(signal)
     await db.commit()
     await db.refresh(signal)
     return signal, True
+
+
+# ---------------------------------------------------------------------------
+# Classification helper
+# ---------------------------------------------------------------------------
+
+async def _classify_for_software(
+    db: AsyncSession,
+    software_id: uuid.UUID,
+    source_type: str,
+    event_type: str,
+    severity: str | None,
+    title: str | None,
+    body: str | None,
+) -> dict[str, str]:
+    """Look up the software registration and classify the signal."""
+    from app.signals.classification import classify_signal
+
+    result = await db.execute(
+        select(SoftwareRegistration).where(SoftwareRegistration.id == software_id)
+    )
+    sw = result.scalar_one_or_none()
+    if not sw:
+        return {}
+    return classify_signal(
+        source_type, event_type, severity,
+        title, body,
+        sw.software_name, sw.created_at,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -357,7 +442,11 @@ async def compose_email(
                 title=data.subject,
                 body=data.body,
                 occurred_at=data.occurred_at or datetime.now(timezone.utc),
-                event_metadata={"reporter": data.sender_name} if data.sender_name else {},
+                event_metadata={
+                    "direction": data.direction,
+                    "sender": formatted_sender,
+                    **({"reporter": data.sender_name} if data.sender_name else {}),
+                },
             )
             signal_created = is_new
 

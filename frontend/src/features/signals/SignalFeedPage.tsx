@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSignalEvents, getHealthScores, ingestSignals, analyzeSignals } from '../../api/signals';
+import { getSignalEvents, getHealthScores, getHealthScoreBenchmarks, getSummaries, ingestSignals, analyzeSignals } from '../../api/signals';
 import { getSoftwareList } from '../../api/software';
-import type { SignalEvent } from '../../api/signals';
-import { Activity, Zap, TrendingUp, AlertTriangle } from 'lucide-react';
+import type { SignalEvent, TrajectorySummaries } from '../../api/signals';
+import { Activity, Zap, TrendingUp, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { TrajectoryCard } from './TrajectoryCard';
+import { ResponsivenessChart } from './ResponsivenessChart';
+import { FitnessTimeline } from './FitnessTimeline';
+import { ReliabilityTimeline } from './ReliabilityTimeline';
+import { PerformanceTimeline } from './PerformanceTimeline';
 
 export function SignalFeedPage() {
   const queryClient = useQueryClient();
   const [selectedSoftware, setSelectedSoftware] = useState<string | undefined>(undefined);
   const [severityFilter, setSeverityFilter] = useState<string | undefined>(undefined);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const { data: softwareList } = useQuery({
     queryKey: ['software'],
@@ -25,6 +31,18 @@ export function SignalFeedPage() {
     queryFn: () => getHealthScores(selectedSoftware),
   });
 
+  const { data: hsBenchmarks } = useQuery({
+    queryKey: ['health-score-benchmarks', selectedSoftware],
+    queryFn: () => getHealthScoreBenchmarks(selectedSoftware!),
+    enabled: !!selectedSoftware,
+  });
+
+  const { data: summaries } = useQuery({
+    queryKey: ['summaries', selectedSoftware],
+    queryFn: () => getSummaries(selectedSoftware!),
+    enabled: !!selectedSoftware,
+  });
+
   const ingestMutation = useMutation({
     mutationFn: (softwareId: string) => ingestSignals(softwareId),
     onSuccess: (data) => {
@@ -38,7 +56,22 @@ export function SignalFeedPage() {
     onSuccess: (data) => {
       alert(`Analysis ${data.status}. Check health scores and review drafts.`);
       queryClient.invalidateQueries({ queryKey: ['health-scores'] });
+      queryClient.invalidateQueries({ queryKey: ['health-score-benchmarks'] });
       queryClient.invalidateQueries({ queryKey: ['review-drafts'] });
+      queryClient.invalidateQueries({ queryKey: ['trajectory'] });
+      queryClient.invalidateQueries({ queryKey: ['issue-rate'] });
+      queryClient.invalidateQueries({ queryKey: ['recurrence-rate'] });
+      queryClient.invalidateQueries({ queryKey: ['resolution-time'] });
+      queryClient.invalidateQueries({ queryKey: ['vendor-responsiveness'] });
+      queryClient.invalidateQueries({ queryKey: ['escalation-rate'] });
+      queryClient.invalidateQueries({ queryKey: ['core-peripheral'] });
+      queryClient.invalidateQueries({ queryKey: ['fitness-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['fitness-events'] });
+      queryClient.invalidateQueries({ queryKey: ['reliability'] });
+      queryClient.invalidateQueries({ queryKey: ['reliability-events'] });
+      queryClient.invalidateQueries({ queryKey: ['performance'] });
+      queryClient.invalidateQueries({ queryKey: ['performance-events'] });
+      queryClient.invalidateQueries({ queryKey: ['summaries'] });
     },
   });
 
@@ -63,6 +96,11 @@ export function SignalFeedPage() {
     if (score >= 80) return 'text-green-600';
     if (score >= 60) return 'text-yellow-600';
     return 'text-red-600';
+  };
+
+  const pctlBadge = (p: number) => {
+    const color = p >= 75 ? 'bg-green-100 text-green-700' : p >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
+    return <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${color}`}>P{p}</span>;
   };
 
   const tierBadge = (tier: string) => {
@@ -157,31 +195,80 @@ export function SignalFeedPage() {
                 <p className="text-sm text-gray-500">Latest Health Score</p>
                 {tierBadge(latestScore.confidence_tier)}
               </div>
-              <p className={`text-3xl font-bold ${scoreColor(latestScore.score)}`}>
-                {latestScore.score}/100
-              </p>
+              <div className="flex items-center gap-2">
+                <p className={`text-3xl font-bold ${scoreColor(latestScore.score)}`}>
+                  {latestScore.score}/100
+                </p>
+                {hsBenchmarks?.overall && pctlBadge(hsBenchmarks.overall.percentile)}
+              </div>
               <p className="text-xs text-gray-400 mt-0.5">
                 Based on {latestScore.signal_count} signal{latestScore.signal_count !== 1 ? 's' : ''}
               </p>
             </div>
-            <div className="flex gap-6">
-              {Object.entries(latestScore.category_breakdown).map(([key, value]) => (
-                <div key={key} className="text-center">
-                  <p className="text-xs text-gray-500">{key.replace(/_/g, ' ')}</p>
-                  <p className={`text-lg font-semibold ${scoreColor(value as number)}`}>
-                    {value as number}
-                  </p>
-                </div>
-              ))}
+            <div className="flex gap-4">
+              {(() => {
+                const catConfidence = latestScore.category_breakdown.category_confidence as Record<string, string> | undefined;
+                return Object.entries(latestScore.category_breakdown)
+                  .filter(([key]) => key !== 'support_quality' && key !== 'category_confidence')
+                  .map(([key, value]) => {
+                    const isLowConf = catConfidence?.[key] === 'low';
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setExpandedCategory(expandedCategory === key ? null : key)}
+                        className={`text-center cursor-pointer rounded-lg px-3 py-1.5 transition-colors ${
+                          expandedCategory === key ? 'bg-gray-100' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <p className="text-xs text-gray-500">{key.replace(/_/g, ' ')}</p>
+                        <div className="flex items-center justify-center gap-1">
+                          <p className={`text-lg font-semibold ${isLowConf ? 'text-gray-400 italic' : scoreColor(value as number)}`}
+                            title={isLowConf ? 'Low confidence — few relevant signals for this category' : undefined}
+                          >
+                            {isLowConf ? `~${value}` : (value as number)}
+                          </p>
+                          {hsBenchmarks?.categories[key] && pctlBadge(hsBenchmarks.categories[key].percentile)}
+                        </div>
+                        {expandedCategory === key
+                          ? <ChevronUp className="w-3 h-3 text-gray-400 mx-auto" />
+                          : <ChevronDown className="w-3 h-3 text-gray-400 mx-auto" />}
+                      </button>
+                    );
+                  });
+              })()}
             </div>
           </div>
-          {latestScore.signal_summary && (
+          {(summaries?.health?.overall || latestScore.signal_summary) && (
             <p className="text-sm text-gray-600 mt-3 border-t border-gray-100 pt-3">
-              {latestScore.signal_summary}
+              {summaries?.health?.overall || latestScore.signal_summary}
             </p>
           )}
+          {expandedCategory && selectedSoftware && (() => {
+            const charts: Record<string, React.FC<{ softwareId: string }>> = {
+              reliability: ReliabilityTimeline,
+              performance: PerformanceTimeline,
+              fitness_for_purpose: FitnessTimeline,
+            };
+            const ChartComp = charts[expandedCategory];
+            if (!ChartComp) return null;
+            const catSummary = summaries?.health?.[expandedCategory as keyof typeof summaries.health];
+            return (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                {catSummary && (
+                  <p className="text-sm text-gray-600 mb-3">{catSummary}</p>
+                )}
+                <ChartComp softwareId={selectedSoftware} />
+              </div>
+            );
+          })()}
         </div>
       )}
+
+      {/* Trajectory card */}
+      {selectedSoftware && <TrajectoryCard softwareId={selectedSoftware} trajectorySummaries={summaries?.trajectory} />}
+
+      {/* Vendor Responsiveness (cross-stage, standalone) */}
+      {selectedSoftware && <ResponsivenessChart softwareId={selectedSoftware} />}
 
       {/* Events table */}
       {isLoading ? (

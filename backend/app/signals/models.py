@@ -36,6 +36,8 @@ class HealthScore(TimestampMixin, Base):
     confidence_tier: Mapped[str] = mapped_column(String(20), nullable=False, default="preliminary")  # preliminary, developing, solid
     scoring_window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     scoring_window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    summaries: Mapped[dict | None] = mapped_column(JSON, default=None)
+    trajectory_data: Mapped[dict | None] = mapped_column(JSON, default=None)
 
 
 class ReviewDraft(TimestampMixin, Base):

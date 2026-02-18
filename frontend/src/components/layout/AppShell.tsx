@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { NavLink, Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
+import { getMe } from '../../api/auth';
 import { LogOut, BarChart3, LayoutDashboard, Scan, Package, Activity, FileText, Globe, Settings } from 'lucide-react';
 
 const navItems = [
@@ -13,7 +15,13 @@ const navItems = [
 ];
 
 export function AppShell() {
-  const { isAuthenticated, company, logout } = useAuthStore();
+  const { isAuthenticated, company, setCompany, logout } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated && !company) {
+      getMe().then(setCompany).catch(() => {});
+    }
+  }, [isAuthenticated, company, setCompany]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" />;

@@ -31,6 +31,7 @@ interface GanttRow {
   description: string;
   offset: number;
   duration: number;
+  end: number;
   satisfied_count: number;
   dissatisfied_count: number;
   total: number;
@@ -46,19 +47,21 @@ function buildGanttData(stages: CUJStage[]): GanttRow[] {
   // Position stages sequentially
   let offset = 0;
   return withDuration.map((s) => {
+    const end = offset + s.avg_duration_days!;
     const row: GanttRow = {
       name: s.name,
       order: s.order,
       description: s.description,
       offset,
       duration: s.avg_duration_days!,
+      end,
       satisfied_count: s.satisfied_count,
       dissatisfied_count: s.dissatisfied_count,
       total: s.total,
       avg_duration_days: s.avg_duration_days!,
       fill: stageBarColor(s),
     };
-    offset += s.avg_duration_days!;
+    offset = end;
     return row;
   });
 }
@@ -214,14 +217,10 @@ export function SolutionDetailPage() {
                     );
                   }}
                 />
-                {/* Invisible offset bar */}
-                <Bar dataKey="offset" stackId="gantt" fill="transparent" isAnimationActive={false} />
-                {/* Visible duration bar — colored by satisfaction ratio */}
+                {/* Single bar using end value; custom shape draws only the duration portion */}
                 <Bar
-                  dataKey="duration"
-                  stackId="gantt"
+                  dataKey="end"
                   cursor="pointer"
-                  radius={[4, 4, 4, 4]}
                   isAnimationActive={false}
                   onClick={(row: GanttRow) => {
                     navigate(
@@ -232,11 +231,15 @@ export function SolutionDetailPage() {
                     const { x, y, width, height, payload } = props as {
                       x: number; y: number; width: number; height: number; payload: GanttRow;
                     };
+                    if (!payload.end) return <rect />;
+                    const pxPerUnit = width / payload.end;
+                    const offsetPx = payload.offset * pxPerUnit;
+                    const durationPx = Math.max(payload.duration * pxPerUnit, 4);
                     return (
                       <rect
-                        x={x}
+                        x={x + offsetPx}
                         y={y}
-                        width={Math.max(width, 4)}
+                        width={durationPx}
                         height={height}
                         rx={4}
                         fill={payload.fill}
