@@ -42,7 +42,7 @@ def upgrade() -> None:
     with op.batch_alter_table('detected_software') as batch_op:
         batch_op.add_column(sa.Column('source_drive_file_id', sa.Uuid(), nullable=True))
         batch_op.create_foreign_key('fk_detected_software_drive_file', 'monitored_drive_files', ['source_drive_file_id'], ['id'])
-    op.add_column('email_integrations', sa.Column('drive_sync_enabled', sa.Boolean(), nullable=False, server_default=sa.text('0')))
+    op.add_column('email_integrations', sa.Column('drive_sync_enabled', sa.Boolean(), nullable=False, server_default=sa.text('false')))
     op.add_column('email_integrations', sa.Column('drive_last_sync_at', sa.DateTime(timezone=True), nullable=True))
     op.add_column('email_integrations', sa.Column('drive_page_token', sa.Text(), nullable=True))
     # ### end Alembic commands ###
