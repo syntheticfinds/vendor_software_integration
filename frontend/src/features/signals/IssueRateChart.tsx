@@ -116,10 +116,10 @@ export function IssueRateChart({ softwareId, stageTopic }: { softwareId: string;
             tickLine={false}
           />
           <Tooltip
-            labelFormatter={formatDate}
-            formatter={(value: number, name: string) => [
-              value,
-              name === 'peerCount' ? 'Peer avg' : 'Issues',
+            labelFormatter={(label: unknown) => formatDate(String(label))}
+            formatter={(value: unknown, name: unknown) => [
+              value as number,
+              (name as string) === 'peerCount' ? 'Peer avg' : 'Issues',
             ]}
             contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
           />

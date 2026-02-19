@@ -328,7 +328,7 @@ function EmailForm({ companyId }: { companyId: string }) {
 
 function SignalForm({ companyId, sourceType }: { companyId: string; sourceType: 'jira' }) {
   const eventTypes = jiraEventTypes;
-  const [eventType, setEventType] = useState(eventTypes[0].value);
+  const [eventType, setEventType] = useState<string>(eventTypes[0].value);
   const [severity, setSeverity] = useState<'low' | 'medium' | 'high' | 'critical'>('medium');
   const [reporter, setReporter] = useState('');
   const [title, setTitle] = useState('');

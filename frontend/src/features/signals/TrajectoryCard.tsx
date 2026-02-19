@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getTrajectory } from '../../api/signals';
-import type { TrajectoryStage, StageSmoothnessMetrics, BenchmarkComparison, StageBenchmark, TrajectoryBenchmarks, TrajectorySummaries, StageSummaries } from '../../api/signals';
+import type { TrajectoryStage, StageSmoothnessMetrics, BenchmarkComparison, TrajectoryBenchmarks, TrajectorySummaries, StageSummaries } from '../../api/signals';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { FrictionTimeline } from './FrictionTimeline';
 import { RecurrenceTimeline } from './RecurrenceTimeline';

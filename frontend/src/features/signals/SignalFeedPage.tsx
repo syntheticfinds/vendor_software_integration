@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSignalEvents, getHealthScores, getHealthScoreBenchmarks, getSummaries, ingestSignals, analyzeSignals } from '../../api/signals';
 import { getSoftwareList } from '../../api/software';
-import type { SignalEvent, TrajectorySummaries } from '../../api/signals';
-import { Activity, Zap, TrendingUp, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import type { SignalEvent } from '../../api/signals';
+import { Activity, Zap, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import { TrajectoryCard } from './TrajectoryCard';
 import { ResponsivenessChart } from './ResponsivenessChart';
 import { FitnessTimeline } from './FitnessTimeline';
@@ -207,7 +207,7 @@ export function SignalFeedPage() {
             </div>
             <div className="flex gap-4">
               {(() => {
-                const catConfidence = latestScore.category_breakdown.category_confidence as Record<string, string> | undefined;
+                const catConfidence = (latestScore.category_breakdown as Record<string, unknown>).category_confidence as Record<string, string> | undefined;
                 return Object.entries(latestScore.category_breakdown)
                   .filter(([key]) => key !== 'support_quality' && key !== 'category_confidence')
                   .map(([key, value]) => {

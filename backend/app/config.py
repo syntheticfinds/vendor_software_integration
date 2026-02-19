@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -27,7 +28,20 @@ class Settings(BaseSettings):
 
     K_ANONYMITY_THRESHOLD: int = 5
 
+    # Production deployment
+    FRONTEND_URL: str = "http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:5173"
+
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _fix_database_url(self):
+        """Render provides postgresql:// but asyncpg needs postgresql+asyncpg://."""
+        if self.DATABASE_URL.startswith("postgresql://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace(
+                "postgresql://", "postgresql+asyncpg://", 1,
+            )
+        return self
 
 
 settings = Settings()

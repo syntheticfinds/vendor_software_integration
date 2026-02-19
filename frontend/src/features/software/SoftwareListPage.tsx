@@ -91,7 +91,7 @@ function WebhookSelector({
 
 function EditForm({
   sw,
-  webhookInfo,
+  webhookInfo: _webhookInfo,
   allWebhooks,
   onCancel,
   onSaved,

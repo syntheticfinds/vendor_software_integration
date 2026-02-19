@@ -209,7 +209,7 @@ export function DashboardPage() {
                   cx="50%"
                   cy="50%"
                   outerRadius={90}
-                  label={({ category, percentage }) => `${category} (${percentage}%)`}
+                  label={(props) => `${(props as any).category} (${(props as any).percentage}%)`}
                 >
                   {issueCategories.map((_entry, idx) => (
                     <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getEscalationEvents } from '../../api/signals';
-import type { EscalationEvent } from '../../api/signals';
+import type { EscalationEvent as _EscalationEvent } from '../../api/signals';
 import { ChevronDown, ChevronUp, ArrowUpRight } from 'lucide-react';
 
 const SOURCE_LABELS: Record<string, string> = {

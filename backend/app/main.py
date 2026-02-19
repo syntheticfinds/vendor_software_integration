@@ -1,13 +1,17 @@
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.analytics.router import router as analytics_router
 from app.auth.router import router as auth_router
 from app.companies.router import router as companies_router
+from app.config import settings
 from app.monitoring.router import router as monitoring_router
 from app.signals.router import router as signals_router
 from app.software.router import router as software_router
@@ -55,9 +59,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -80,6 +85,21 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health():
         return {"status": "ok"}
+
+    # Serve the built frontend in production (when frontend/dist exists)
+    frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+    if frontend_dist.is_dir():
+        assets_dir = frontend_dist / "assets"
+        if assets_dir.is_dir():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
+
+        @app.get("/{full_path:path}")
+        async def serve_frontend(full_path: str):
+            """SPA fallback — serve index.html for all non-API routes."""
+            target = frontend_dist / full_path
+            if full_path and target.is_file() and str(target.resolve()).startswith(str(frontend_dist.resolve())):
+                return FileResponse(str(target))
+            return FileResponse(str(frontend_dist / "index.html"))
 
     return app
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getResolutionEvents } from '../../api/signals';
-import type { ResolutionEvent } from '../../api/signals';
+import type { ResolutionEvent as _ResolutionEvent } from '../../api/signals';
 import { ChevronDown, ChevronUp, Clock } from 'lucide-react';
 
 const SOURCE_LABELS: Record<string, string> = {

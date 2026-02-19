@@ -43,8 +43,7 @@ from app.integrations.service import (
 logger = structlog.get_logger()
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
-# TODO: move to config for production
-FRONTEND_URL = "http://localhost:5173"
+FRONTEND_URL = settings.FRONTEND_URL
 
 
 @router.get("/gmail/authorize", response_model=GmailAuthUrl)

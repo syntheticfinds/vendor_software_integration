@@ -143,7 +143,7 @@ export function SolutionDetailPage() {
                   cx="50%"
                   cy="50%"
                   outerRadius={100}
-                  label={({ label, count }) => `${label} (${count})`}
+                  label={(props) => `${(props as any).label} (${(props as any).count})`}
                 >
                   {data.industry_distribution.map((_entry, idx) => (
                     <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
@@ -222,12 +222,13 @@ export function SolutionDetailPage() {
                   dataKey="end"
                   cursor="pointer"
                   isAnimationActive={false}
-                  onClick={(row: GanttRow) => {
+                  onClick={(_data: unknown) => {
+                    const row = (_data as { payload: GanttRow }).payload ?? (_data as GanttRow);
                     navigate(
                       `/intelligence/${encodeURIComponent(data.vendor_name)}/${encodeURIComponent(data.software_name)}/drilldown/${row.order}`,
                     );
                   }}
-                  shape={(props: Record<string, unknown>) => {
+                  shape={(props: unknown) => {
                     const { x, y, width, height, payload } = props as {
                       x: number; y: number; width: number; height: number; payload: GanttRow;
                     };
