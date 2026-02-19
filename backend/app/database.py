@@ -6,13 +6,15 @@ from app.config import settings
 engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
 
-@sqlalchemy.event.listens_for(engine.sync_engine, "connect")
-def _set_sqlite_pragmas(dbapi_conn, _connection_record):
-    """Enable WAL mode and busy timeout for SQLite concurrency."""
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA busy_timeout=5000")
-    cursor.close()
+if settings.DATABASE_URL.startswith("sqlite"):
+
+    @sqlalchemy.event.listens_for(engine.sync_engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, _connection_record):
+        """Enable WAL mode and busy timeout for SQLite concurrency."""
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
 
 
 async_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
